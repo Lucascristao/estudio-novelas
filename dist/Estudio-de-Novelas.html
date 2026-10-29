@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-qLFRH+Kv7dXpkxgu5DyLZK7odXQPJKHCJUKJSqFsHMc='; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; connect-src 'none'; font-src data:; object-src 'none'; base-uri 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-hf2dlw9HoolVlHt8u12qK+Yph59e63OnUAXDRc9QX9g='; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; connect-src 'none'; font-src data:; object-src 'none'; base-uri 'none'" />
     <title>Estúdio de Novelas</title>
     <style>
 /* src/styles.css */
@@ -834,6 +834,9 @@ video {
 .border-amber-500\/40 {
   border-color: rgb(245 158 11 / 0.4);
 }
+.border-emerald-400\/20 {
+  border-color: rgb(52 211 153 / 0.2);
+}
 .border-emerald-400\/30 {
   border-color: rgb(52 211 153 / 0.3);
 }
@@ -950,6 +953,9 @@ video {
 }
 .bg-emerald-400\/10 {
   background-color: rgb(52 211 153 / 0.1);
+}
+.bg-emerald-400\/5 {
+  background-color: rgb(52 211 153 / 0.05);
 }
 .bg-emerald-500\/10 {
   background-color: rgb(16 185 129 / 0.1);
@@ -1492,6 +1498,9 @@ video {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
+}
+.ease-in-out {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 :root {
   color-scheme: dark;

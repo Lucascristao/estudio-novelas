@@ -64,6 +64,13 @@ export default async (req) => {
       }
     }
 
+    if (lastError && (lastError.includes('API key not valid') || lastError.includes('API_KEY_INVALID') || !apiKey.trim().startsWith('AIzaSy'))) {
+      return new Response(JSON.stringify({ error: 'Chave Gemini inválida no Netlify. No Google AI Studio (aistudio.google.com), clique em "Get API key" para copiar a chave correta (que começa com "AIzaSy...").' }), {
+        status: 400,
+        headers,
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Instabilidade temporária na Google AI: ${lastError}` }), {
       status: 502,
       headers,

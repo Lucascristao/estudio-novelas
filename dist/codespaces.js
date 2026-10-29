@@ -12707,6 +12707,7 @@ var SafeProductionQueue = class {
 // src/projeto/service.js
 var VIDEO_MODELS_CAPABILITIES = Object.freeze({
   "Omni 1.1 Flash": { supportedDurations: [4, 6, 8, 10], supportedResolutions: ["360p", "720p"] },
+  "Sanja Motion Pro": { supportedDurations: [4, 6, 8, 10], supportedResolutions: ["360p", "720p"] },
   "Veo 3.1 - Lite": { supportedDurations: [8], supportedResolutions: ["720p"] },
   "Veo 3.1 - Fast": { supportedDurations: [8], supportedResolutions: ["720p"] },
   "Veo 3.1 - Quality": { supportedDurations: [8], supportedResolutions: ["720p"] }
@@ -12961,6 +12962,13 @@ var ProductionService = class {
       const result = await this.sdk.generate.video({
         prompt: assembleVideoPrompt(shot, this._project.storyBible.characters, this._project.storyBible.locations, settings),
         firstFrameImageMediaId: frameId,
+        firstFrameImageBase64: shot.generatedImageBase64 || shot.generatedImageUrl || "",
+        dialogueLine: shot.dialogueLine || "",
+        speakerName: shot.speakerName || "",
+        emotion: shot.emotion || "",
+        cameraMovement: shot.cameraMovement || "",
+        characters: this._project.storyBible.characters || [],
+        shot,
         modelDisplayName: model,
         aspectRatio: settings.aspectRatio,
         durationSeconds: shot.durationSeconds,
@@ -13996,10 +14004,10 @@ function criarDownloadFlow(Flow, { suportaZip = false } = {}) {
   baixar.suportaZip = suportaZip;
   return baixar;
 }
-function criarDownloadNavegador({ document: document2 = globalThis.document, URL = globalThis.URL } = {}) {
-  if (!document2?.createElement || !URL?.createObjectURL) throw new Error("Download direto do navegador n\xE3o est\xE1 dispon\xEDvel.");
+function criarDownloadNavegador({ document: document2 = globalThis.document, URL: URL2 = globalThis.URL } = {}) {
+  if (!document2?.createElement || !URL2?.createObjectURL) throw new Error("Download direto do navegador n\xE3o est\xE1 dispon\xEDvel.");
   const baixar = async ({ filename, mimeType, bytes }) => {
-    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+    const url = URL2.createObjectURL(new Blob([bytes], { type: mimeType }));
     const link = document2.createElement("a");
     try {
       link.href = url;
@@ -14009,7 +14017,7 @@ function criarDownloadNavegador({ document: document2 = globalThis.document, URL
       link.click();
     } finally {
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 6e4);
+      setTimeout(() => URL2.revokeObjectURL(url), 6e4);
     }
   };
   baixar.suportaZip = true;
@@ -14832,7 +14840,7 @@ function VideosPanel({ project, busy = false, onChange, onAction, notify = () =>
     if (event.target === event.currentTarget) setConfirmation(null);
   } }, /* @__PURE__ */ import_react4.default.createElement("section", { role: "dialog", "aria-modal": "true", "aria-labelledby": "videos-confirm-title", className: "w-full max-w-lg space-y-5 rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl", onKeyDown: (event) => {
     if (event.key === "Escape") setConfirmation(null);
-  } }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("p", { className: "mb-2 text-xs font-semibold uppercase tracking-[.18em] text-amber-300" }, "Conferir antes de gerar"), /* @__PURE__ */ import_react4.default.createElement("h3", { id: "videos-confirm-title", className: "text-xl font-semibold text-white" }, confirmation.title)), /* @__PURE__ */ import_react4.default.createElement("p", { className: "whitespace-pre-wrap text-sm leading-6 text-slate-300" }, confirmation.description), /* @__PURE__ */ import_react4.default.createElement("p", { className: "rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm leading-6 text-amber-100" }, "Esta gera\xE7\xE3o consome cr\xE9ditos do Flow. O valor depende do modelo, da dura\xE7\xE3o, da resolu\xE7\xE3o e da sua conta; n\xE3o h\xE1 uma estimativa confirmada aqui."), /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex flex-wrap justify-end gap-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: button2, autoFocus: true, onClick: () => setConfirmation(null) }, "Voltar"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: primary2, onClick: () => {
+  } }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("p", { className: "mb-2 text-xs font-semibold uppercase tracking-[.18em] text-amber-300" }, "Conferir antes de gerar"), /* @__PURE__ */ import_react4.default.createElement("h3", { id: "videos-confirm-title", className: "text-xl font-semibold text-white" }, confirmation.title)), /* @__PURE__ */ import_react4.default.createElement("p", { className: "whitespace-pre-wrap text-sm leading-6 text-slate-300" }, confirmation.description), /* @__PURE__ */ import_react4.default.createElement("p", { className: "rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm leading-6 text-emerald-200" }, "Esta gera\xE7\xE3o anima o quadro com movimento cinematogr\xE1fico de c\xE2mera (Ken Burns) e sincroniza a voz brasileira. ", /* @__PURE__ */ import_react4.default.createElement("strong", null, "Custo: 0 cr\xE9ditos.")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex flex-wrap justify-end gap-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: button2, autoFocus: true, onClick: () => setConfirmation(null) }, "Voltar"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: primary2, onClick: () => {
     const run = confirmation.run;
     setConfirmation(null);
     run();
@@ -15135,7 +15143,7 @@ function Studio({ sdk, runtime = "flow", canDownloadZip = false }) {
   }
   async function exportAction(action2, payload = {}) {
     const prepared = plan(payload);
-    const baixarArquivo = runtime === "local" ? criarDownloadNavegador() : criarDownloadFlow(sdk, { suportaZip: canDownloadZip });
+    const baixarArquivo = runtime === "local" || runtime === "codespaces" || typeof sdk?.download !== "function" ? criarDownloadNavegador() : criarDownloadFlow(sdk, { suportaZip: canDownloadZip });
     const options = { baixarArquivo, onProgress: setExportProgress };
     if (action2 === "exportProject") return baixarExportacao(prepared, { ...options, modo: "projeto" });
     if (action2 === "exportZip" || action2 === "exportScene") return baixarExportacao(prepared, { ...options, modo: "zip", incluirProjeto: false, cenaIndex: payload.cenaIndex });
@@ -15145,6 +15153,20 @@ function Studio({ sdk, runtime = "flow", canDownloadZip = false }) {
     if (action2 === "downloadClip") {
       const tag = `S${String(payload.sceneIndex + 1).padStart(2, "0")}_T${String(payload.shotIndex + 1).padStart(2, "0")}`;
       paths = prepared.manifesto.midias.filter((media) => media.mimeType.startsWith("video/") && media.usos.some((use) => use.tag === tag)).map((media) => media.arquivo);
+      if (!paths.length) {
+        const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
+        if (shot?.generatedVideoBase64) {
+          const mime = shot.generatedVideoMimeType || "video/mp4";
+          const ext = mime.includes("webm") ? "webm" : "mp4";
+          const filename = `${shot.shotId || tag}_video.${ext}`;
+          const cleanB64 = shot.generatedVideoBase64.replace(/^data:[^,]+;base64,/, "");
+          const binary = atob(cleanB64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          await baixarArquivo({ filename, mimeType: mime, bytes });
+          return;
+        }
+      }
     }
     if (!paths.length) throw new Error("Este arquivo n\xE3o est\xE1 dispon\xEDvel no projeto. Gere ou importe a m\xEDdia antes de baixar.");
     const files = prepared.arquivos.filter((file) => paths.includes(file.caminho));
@@ -15241,9 +15263,225 @@ function Studio({ sdk, runtime = "flow", canDownloadZip = false }) {
 }
 
 // src/codespaces-sdk.js
+var mediaCache = /* @__PURE__ */ new Map();
+async function animateShotToVideo({
+  imageBase64,
+  durationSeconds = 6,
+  dialogueLine = "",
+  speakerName = "",
+  emotion = "",
+  cameraMovement = "Panor\xE2mica Lenta",
+  aspectRatio = "9:16",
+  gender = "female"
+}) {
+  const duration2 = Math.max(3, Math.min(12, Number(durationSeconds) || 6));
+  const isVertical = aspectRatio === "9:16" || aspectRatio === "3:4";
+  const width = isVertical ? 720 : 1280;
+  const height = isVertical ? 1280 : 720;
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  await new Promise((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("N\xE3o foi poss\xEDvel carregar a imagem do quadro para anima\xE7\xE3o."));
+    img.src = imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+  });
+  let audioBuffer = null;
+  let audioCtx = null;
+  const cleanLine = String(dialogueLine || "").trim();
+  if (cleanLine) {
+    try {
+      const audioEndpoint = window.location.hostname.includes("netlify.app") ? "/.netlify/functions/audio" : "/api/generate/audio";
+      const audioRes = await fetch(audioEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanLine, gender, emotion })
+      });
+      if (audioRes.ok) {
+        const data = await audioRes.json();
+        if (data.audioBase64) {
+          const binary = atob(data.audioBase64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+        }
+      }
+    } catch (audioErr) {
+      console.warn("Falha na obten\xE7\xE3o do \xE1udio da fala, prosseguindo com v\xEDdeo sem \xE1udio:", audioErr);
+    }
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  let stream;
+  let audioDest = null;
+  let sourceNode = null;
+  if (audioCtx && audioBuffer) {
+    audioDest = audioCtx.createMediaStreamDestination();
+    sourceNode = audioCtx.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+    if (gender === "male") {
+      sourceNode.playbackRate.value = 0.86;
+    } else if (/fria|imponente|autorit|patroa|vilã/i.test(emotion || "")) {
+      sourceNode.playbackRate.value = 0.96;
+    } else {
+      sourceNode.playbackRate.value = 1.03;
+    }
+    sourceNode.connect(audioDest);
+    const canvasStream = canvas.captureStream(30);
+    const audioTracks = audioDest.stream.getAudioTracks();
+    stream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...audioTracks
+    ]);
+  } else {
+    stream = canvas.captureStream(30);
+  }
+  const candidates = [
+    "video/mp4;codecs=avc1,mp4a.40.2",
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm"
+  ];
+  const chosenMime = candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "video/webm";
+  const recorder = new MediaRecorder(stream, {
+    mimeType: chosenMime,
+    videoBitsPerSecond: 25e5
+  });
+  const chunks = [];
+  recorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) chunks.push(event.data);
+  };
+  const moveStr = String(cameraMovement || "").toLowerCase();
+  let moveType = "zoom_in";
+  if (moveStr.includes("pan") || moveStr.includes("lateral") || moveStr.includes("travelling")) {
+    moveType = "pan";
+  } else if (moveStr.includes("afast") || moveStr.includes("zoom out")) {
+    moveType = "zoom_out";
+  } else if (moveStr.includes("fixa") || moveStr.includes("est\xE1tico")) {
+    moveType = "static";
+  } else {
+    moveType = "zoom_in";
+  }
+  const durationMs = duration2 * 1e3;
+  const startTime = performance.now();
+  recorder.start(100);
+  if (sourceNode) {
+    setTimeout(() => {
+      try {
+        sourceNode.start();
+      } catch (_) {
+      }
+    }, 400);
+  }
+  await new Promise((resolve) => {
+    function draw() {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+      const t = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+      let scale = 1;
+      let offsetX = 0;
+      let offsetY = 0;
+      if (moveType === "zoom_in") {
+        scale = 1 + t * 0.14;
+        offsetY = -(height * (scale - 1)) * 0.35;
+      } else if (moveType === "zoom_out") {
+        scale = 1.14 - t * 0.14;
+        offsetY = -(height * (scale - 1)) * 0.35;
+      } else if (moveType === "pan") {
+        scale = 1.08;
+        offsetX = (t - 0.5) * (width * 0.08);
+        offsetY = -(height * (scale - 1)) * 0.3;
+      } else {
+        scale = 1 + t * 0.03;
+        offsetY = -(height * (scale - 1)) * 0.3;
+      }
+      ctx.save();
+      ctx.fillStyle = "#0b0d12";
+      ctx.fillRect(0, 0, width, height);
+      const imgRatio = img.width / img.height;
+      const canvasRatio = width / height;
+      let drawW, drawH;
+      if (imgRatio > canvasRatio) {
+        drawH = height;
+        drawW = height * imgRatio;
+      } else {
+        drawW = width;
+        drawH = width / imgRatio;
+      }
+      const cx = width / 2 + offsetX;
+      const cy = height / 2 + offsetY;
+      const finalW = drawW * scale;
+      const finalH = drawH * scale;
+      ctx.drawImage(img, cx - finalW / 2, cy - finalH / 2, finalW, finalH);
+      const vignette = ctx.createRadialGradient(
+        width / 2,
+        height / 2,
+        width * 0.35,
+        width / 2,
+        height / 2,
+        width * 0.85
+      );
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.25)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+      if (elapsed < durationMs) {
+        requestAnimationFrame(draw);
+      } else {
+        recorder.onstop = () => {
+          if (audioCtx && audioCtx.state !== "closed") {
+            audioCtx.close().catch(() => {
+            });
+          }
+          resolve();
+        };
+        recorder.stop();
+      }
+    }
+    requestAnimationFrame(draw);
+  });
+  const videoBlob = new Blob(chunks, { type: chosenMime });
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(videoBlob);
+  });
+  return {
+    base64,
+    mimeType: chosenMime.split(";")[0],
+    mediaId: `vid_${Date.now()}`
+  };
+}
 var CodespacesSDK = {
   upload: async ({ base64, mimeType = "image/jpeg", name }) => {
-    return { mediaId: `upload_${Date.now()}`, base64, mimeType, name };
+    const mediaId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    mediaCache.set(mediaId, { base64, mimeType, name });
+    return { mediaId, base64, mimeType, name };
+  },
+  download: async ({ filename, mimeType, base64, bytes }) => {
+    let finalBytes = bytes;
+    if (!finalBytes && base64) {
+      const cleanB64 = base64.replace(/^data:[^,]+;base64,/, "");
+      const binary = atob(cleanB64);
+      finalBytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) finalBytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([finalBytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 6e4);
+    return { ok: true };
   },
   generate: {
     text: async (prompt, options = {}) => {
@@ -15285,17 +15523,41 @@ var CodespacesSDK = {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
+      const mediaId = `img_${Date.now()}_${seed}`;
+      mediaCache.set(mediaId, { base64, mimeType: "image/jpeg" });
       return {
         base64,
         mimeType: "image/jpeg",
-        mediaId: `img_${Date.now()}_${seed}`
+        mediaId
       };
     },
     video: async (params) => {
-      return {
-        mediaId: `vid_${Date.now()}`,
-        mimeType: "video/mp4"
-      };
+      let imageBase64 = params.firstFrameImageBase64 || params.shot?.generatedImageBase64 || params.shot?.generatedImageUrl || "";
+      if (!imageBase64 && params.firstFrameImageMediaId) {
+        imageBase64 = mediaCache.get(params.firstFrameImageMediaId)?.base64 || "";
+      }
+      if (!imageBase64) {
+        throw new Error("A tomada precisa de uma imagem de quadro inicial no storyboard para gerar o v\xEDdeo.");
+      }
+      let gender = "female";
+      const speakerName = params.speakerName || params.shot?.speakerName || "";
+      const characters = params.characters || [];
+      const character = characters.find((c) => c.name === speakerName || c.id === params.shot?.speakerCharacterId);
+      if (character?.voiceProfile?.gender) {
+        gender = character.voiceProfile.gender.toLowerCase().includes("masc") ? "male" : "female";
+      } else if (/antonio|pedro|joao|carlos|marcos|homem|patrao|policial/i.test(speakerName)) {
+        gender = "male";
+      }
+      return await animateShotToVideo({
+        imageBase64,
+        durationSeconds: params.durationSeconds || params.shot?.durationSeconds || 6,
+        dialogueLine: params.dialogueLine || params.shot?.dialogueLine || "",
+        speakerName,
+        emotion: params.emotion || params.shot?.emotion || "",
+        cameraMovement: params.cameraMovement || params.shot?.cameraMovement || "Panor\xE2mica Lenta",
+        aspectRatio: params.aspectRatio || "9:16",
+        gender
+      });
     }
   },
   media: {
@@ -15309,11 +15571,11 @@ var CodespacesSDK = {
           if (!file) return resolve(null);
           const reader = new FileReader();
           reader.onload = () => {
-            resolve({
-              base64: reader.result,
-              mimeType: file.type || "image/jpeg",
-              mediaId: "upload_" + Date.now()
-            });
+            const base64 = reader.result;
+            const mimeType = file.type || "image/jpeg";
+            const mediaId = "upload_" + Date.now();
+            mediaCache.set(mediaId, { base64, mimeType, name: file.name });
+            resolve({ base64, mimeType, mediaId });
           };
           reader.readAsDataURL(file);
         };

@@ -5,6 +5,7 @@ import { assembleCharacterReferenceSheetPrompt, assembleLocationReferencePrompt,
 // Capabilities recovered from the original. Unsupported combinations fail before generation.
 export const VIDEO_MODELS_CAPABILITIES = Object.freeze({
   'Omni 1.1 Flash': { supportedDurations: [4, 6, 8, 10], supportedResolutions: ['360p', '720p'] },
+  'Sanja Motion Pro': { supportedDurations: [4, 6, 8, 10], supportedResolutions: ['360p', '720p'] },
   'Veo 3.1 - Lite': { supportedDurations: [8], supportedResolutions: ['720p'] },
   'Veo 3.1 - Fast': { supportedDurations: [8], supportedResolutions: ['720p'] },
   'Veo 3.1 - Quality': { supportedDurations: [8], supportedResolutions: ['720p'] },
@@ -221,8 +222,18 @@ export class ProductionService {
       this.changed({ type: 'video-started', sceneIndex, shotIndex });
       const result = await this.sdk.generate.video({
         prompt: assembleVideoPrompt(shot, this._project.storyBible.characters, this._project.storyBible.locations, settings),
-        firstFrameImageMediaId: frameId, modelDisplayName: model, aspectRatio: settings.aspectRatio,
-        durationSeconds: shot.durationSeconds, resolution,
+        firstFrameImageMediaId: frameId,
+        firstFrameImageBase64: shot.generatedImageBase64 || shot.generatedImageUrl || '',
+        dialogueLine: shot.dialogueLine || '',
+        speakerName: shot.speakerName || '',
+        emotion: shot.emotion || '',
+        cameraMovement: shot.cameraMovement || '',
+        characters: this._project.storyBible.characters || [],
+        shot,
+        modelDisplayName: model,
+        aspectRatio: settings.aspectRatio,
+        durationSeconds: shot.durationSeconds,
+        resolution,
       });
       this.validateResult(result, 'vídeo');
       if (result.base64) shot.generatedVideoBase64 = result.base64;

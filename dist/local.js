@@ -12707,6 +12707,7 @@ var SafeProductionQueue = class {
 // src/projeto/service.js
 var VIDEO_MODELS_CAPABILITIES = Object.freeze({
   "Omni 1.1 Flash": { supportedDurations: [4, 6, 8, 10], supportedResolutions: ["360p", "720p"] },
+  "Sanja Motion Pro": { supportedDurations: [4, 6, 8, 10], supportedResolutions: ["360p", "720p"] },
   "Veo 3.1 - Lite": { supportedDurations: [8], supportedResolutions: ["720p"] },
   "Veo 3.1 - Fast": { supportedDurations: [8], supportedResolutions: ["720p"] },
   "Veo 3.1 - Quality": { supportedDurations: [8], supportedResolutions: ["720p"] }
@@ -12961,6 +12962,13 @@ var ProductionService = class {
       const result = await this.sdk.generate.video({
         prompt: assembleVideoPrompt(shot, this._project.storyBible.characters, this._project.storyBible.locations, settings),
         firstFrameImageMediaId: frameId,
+        firstFrameImageBase64: shot.generatedImageBase64 || shot.generatedImageUrl || "",
+        dialogueLine: shot.dialogueLine || "",
+        speakerName: shot.speakerName || "",
+        emotion: shot.emotion || "",
+        cameraMovement: shot.cameraMovement || "",
+        characters: this._project.storyBible.characters || [],
+        shot,
         modelDisplayName: model,
         aspectRatio: settings.aspectRatio,
         durationSeconds: shot.durationSeconds,
@@ -14832,7 +14840,7 @@ function VideosPanel({ project, busy = false, onChange, onAction, notify = () =>
     if (event.target === event.currentTarget) setConfirmation(null);
   } }, /* @__PURE__ */ import_react4.default.createElement("section", { role: "dialog", "aria-modal": "true", "aria-labelledby": "videos-confirm-title", className: "w-full max-w-lg space-y-5 rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl", onKeyDown: (event) => {
     if (event.key === "Escape") setConfirmation(null);
-  } }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("p", { className: "mb-2 text-xs font-semibold uppercase tracking-[.18em] text-amber-300" }, "Conferir antes de gerar"), /* @__PURE__ */ import_react4.default.createElement("h3", { id: "videos-confirm-title", className: "text-xl font-semibold text-white" }, confirmation.title)), /* @__PURE__ */ import_react4.default.createElement("p", { className: "whitespace-pre-wrap text-sm leading-6 text-slate-300" }, confirmation.description), /* @__PURE__ */ import_react4.default.createElement("p", { className: "rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm leading-6 text-amber-100" }, "Esta gera\xE7\xE3o consome cr\xE9ditos do Flow. O valor depende do modelo, da dura\xE7\xE3o, da resolu\xE7\xE3o e da sua conta; n\xE3o h\xE1 uma estimativa confirmada aqui."), /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex flex-wrap justify-end gap-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: button2, autoFocus: true, onClick: () => setConfirmation(null) }, "Voltar"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: primary2, onClick: () => {
+  } }, /* @__PURE__ */ import_react4.default.createElement("div", null, /* @__PURE__ */ import_react4.default.createElement("p", { className: "mb-2 text-xs font-semibold uppercase tracking-[.18em] text-amber-300" }, "Conferir antes de gerar"), /* @__PURE__ */ import_react4.default.createElement("h3", { id: "videos-confirm-title", className: "text-xl font-semibold text-white" }, confirmation.title)), /* @__PURE__ */ import_react4.default.createElement("p", { className: "whitespace-pre-wrap text-sm leading-6 text-slate-300" }, confirmation.description), /* @__PURE__ */ import_react4.default.createElement("p", { className: "rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm leading-6 text-emerald-200" }, "Esta gera\xE7\xE3o anima o quadro com movimento cinematogr\xE1fico de c\xE2mera (Ken Burns) e sincroniza a voz brasileira. ", /* @__PURE__ */ import_react4.default.createElement("strong", null, "Custo: 0 cr\xE9ditos.")), /* @__PURE__ */ import_react4.default.createElement("div", { className: "flex flex-wrap justify-end gap-2" }, /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: button2, autoFocus: true, onClick: () => setConfirmation(null) }, "Voltar"), /* @__PURE__ */ import_react4.default.createElement("button", { type: "button", className: primary2, onClick: () => {
     const run = confirmation.run;
     setConfirmation(null);
     run();
@@ -15135,7 +15143,7 @@ function Studio({ sdk, runtime = "flow", canDownloadZip = false }) {
   }
   async function exportAction(action2, payload = {}) {
     const prepared = plan(payload);
-    const baixarArquivo = runtime === "local" ? criarDownloadNavegador() : criarDownloadFlow(sdk, { suportaZip: canDownloadZip });
+    const baixarArquivo = runtime === "local" || runtime === "codespaces" || typeof sdk?.download !== "function" ? criarDownloadNavegador() : criarDownloadFlow(sdk, { suportaZip: canDownloadZip });
     const options = { baixarArquivo, onProgress: setExportProgress };
     if (action2 === "exportProject") return baixarExportacao(prepared, { ...options, modo: "projeto" });
     if (action2 === "exportZip" || action2 === "exportScene") return baixarExportacao(prepared, { ...options, modo: "zip", incluirProjeto: false, cenaIndex: payload.cenaIndex });
@@ -15145,6 +15153,20 @@ function Studio({ sdk, runtime = "flow", canDownloadZip = false }) {
     if (action2 === "downloadClip") {
       const tag = `S${String(payload.sceneIndex + 1).padStart(2, "0")}_T${String(payload.shotIndex + 1).padStart(2, "0")}`;
       paths = prepared.manifesto.midias.filter((media) => media.mimeType.startsWith("video/") && media.usos.some((use) => use.tag === tag)).map((media) => media.arquivo);
+      if (!paths.length) {
+        const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
+        if (shot?.generatedVideoBase64) {
+          const mime = shot.generatedVideoMimeType || "video/mp4";
+          const ext = mime.includes("webm") ? "webm" : "mp4";
+          const filename = `${shot.shotId || tag}_video.${ext}`;
+          const cleanB64 = shot.generatedVideoBase64.replace(/^data:[^,]+;base64,/, "");
+          const binary = atob(cleanB64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          await baixarArquivo({ filename, mimeType: mime, bytes });
+          return;
+        }
+      }
     }
     if (!paths.length) throw new Error("Este arquivo n\xE3o est\xE1 dispon\xEDvel no projeto. Gere ou importe a m\xEDdia antes de baixar.");
     const files = prepared.arquivos.filter((file) => paths.includes(file.caminho));

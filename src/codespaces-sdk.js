@@ -1,6 +1,271 @@
+// Cache em memória para mídias carregadas na sessão
+const mediaCache = new Map();
+
+/**
+ * Anima uma imagem do storyboard com movimento de câmera cinematográfico (Ken Burns)
+ * e sintetiza a fala com voz brasileira no navegador via Web Audio e MediaRecorder.
+ * Custo: 0 créditos.
+ */
+async function animateShotToVideo({
+  imageBase64,
+  durationSeconds = 6,
+  dialogueLine = '',
+  speakerName = '',
+  emotion = '',
+  cameraMovement = 'Panorâmica Lenta',
+  aspectRatio = '9:16',
+  gender = 'female',
+}) {
+  const duration = Math.max(3, Math.min(12, Number(durationSeconds) || 6));
+  const isVertical = aspectRatio === '9:16' || aspectRatio === '3:4';
+  const width = isVertical ? 720 : 1280;
+  const height = isVertical ? 1280 : 720;
+
+  // 1. Carregar a imagem
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  await new Promise((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('Não foi possível carregar a imagem do quadro para animação.'));
+    img.src = imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+  });
+
+  // 2. Obter áudio da fala (se houver fala na tomada)
+  let audioBuffer = null;
+  let audioCtx = null;
+  const cleanLine = String(dialogueLine || '').trim();
+
+  if (cleanLine) {
+    try {
+      const audioEndpoint = window.location.hostname.includes('netlify.app')
+        ? '/.netlify/functions/audio'
+        : '/api/generate/audio';
+
+      const audioRes = await fetch(audioEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cleanLine, gender, emotion }),
+      });
+
+      if (audioRes.ok) {
+        const data = await audioRes.json();
+        if (data.audioBase64) {
+          const binary = atob(data.audioBase64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+        }
+      }
+    } catch (audioErr) {
+      console.warn('Falha na obtenção do áudio da fala, prosseguindo com vídeo sem áudio:', audioErr);
+    }
+  }
+
+  // 3. Configurar Canvas para renderização
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  // 4. Configurar MediaStream com vídeo + áudio
+  let stream;
+  let audioDest = null;
+  let sourceNode = null;
+
+  if (audioCtx && audioBuffer) {
+    audioDest = audioCtx.createMediaStreamDestination();
+    sourceNode = audioCtx.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+
+    // Ajuste de entonação por personagem/emoção
+    if (gender === 'male') {
+      sourceNode.playbackRate.value = 0.86;
+    } else if (/fria|imponente|autorit|patroa|vilã/i.test(emotion || '')) {
+      sourceNode.playbackRate.value = 0.96; // Valéria / antagonista: tom mais firme e imponente
+    } else {
+      sourceNode.playbackRate.value = 1.03; // Rosa / protagonista: tom emotivo natural
+    }
+
+    sourceNode.connect(audioDest);
+
+    const canvasStream = canvas.captureStream(30);
+    const audioTracks = audioDest.stream.getAudioTracks();
+    stream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...audioTracks,
+    ]);
+  } else {
+    stream = canvas.captureStream(30);
+  }
+
+  // Determinar o formato de gravação suportado pelo navegador
+  const candidates = [
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ];
+  const chosenMime = candidates.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+
+  const recorder = new MediaRecorder(stream, {
+    mimeType: chosenMime,
+    videoBitsPerSecond: 2500000,
+  });
+
+  const chunks = [];
+  recorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) chunks.push(event.data);
+  };
+
+  // 5. Determinar o tipo de movimento de câmera
+  const moveStr = String(cameraMovement || '').toLowerCase();
+  let moveType = 'zoom_in';
+  if (moveStr.includes('pan') || moveStr.includes('lateral') || moveStr.includes('travelling')) {
+    moveType = 'pan';
+  } else if (moveStr.includes('afast') || moveStr.includes('zoom out')) {
+    moveType = 'zoom_out';
+  } else if (moveStr.includes('fixa') || moveStr.includes('estático')) {
+    moveType = 'static';
+  } else {
+    moveType = 'zoom_in'; // Dolly In suave (padrão dramático de novelas)
+  }
+
+  const durationMs = duration * 1000;
+  const startTime = performance.now();
+
+  recorder.start(100);
+
+  // Inicia o áudio aos 400ms para criar a pausa dramática inicial da cena
+  if (sourceNode) {
+    setTimeout(() => {
+      try { sourceNode.start(); } catch (_) {}
+    }, 400);
+  }
+
+  // 6. Loop de animação dos quadros com Ken Burns
+  await new Promise((resolve) => {
+    function draw() {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+
+      // Suavização senoidal (ease-in-out suave)
+      const t = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+
+      let scale = 1.0;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (moveType === 'zoom_in') {
+        scale = 1.0 + t * 0.14;
+        offsetY = -(height * (scale - 1)) * 0.35; // Mantém o foco no terço superior (rostos)
+      } else if (moveType === 'zoom_out') {
+        scale = 1.14 - t * 0.14;
+        offsetY = -(height * (scale - 1)) * 0.35;
+      } else if (moveType === 'pan') {
+        scale = 1.08;
+        offsetX = (t - 0.5) * (width * 0.08);
+        offsetY = -(height * (scale - 1)) * 0.3;
+      } else {
+        // Câmera sutilmente viva
+        scale = 1.0 + t * 0.03;
+        offsetY = -(height * (scale - 1)) * 0.3;
+      }
+
+      ctx.save();
+      ctx.fillStyle = '#0b0d12';
+      ctx.fillRect(0, 0, width, height);
+
+      // Calcular dimensões "cover" preservando a proporção da imagem
+      const imgRatio = img.width / img.height;
+      const canvasRatio = width / height;
+      let drawW, drawH;
+      if (imgRatio > canvasRatio) {
+        drawH = height;
+        drawW = height * imgRatio;
+      } else {
+        drawW = width;
+        drawH = width / imgRatio;
+      }
+
+      const cx = width / 2 + offsetX;
+      const cy = height / 2 + offsetY;
+      const finalW = drawW * scale;
+      const finalH = drawH * scale;
+
+      ctx.drawImage(img, cx - finalW / 2, cy - finalH / 2, finalW, finalH);
+
+      // Vinheta cinematográfica sutil (estilo drama de TV)
+      const vignette = ctx.createRadialGradient(
+        width / 2, height / 2, width * 0.35,
+        width / 2, height / 2, width * 0.85
+      );
+      vignette.addColorStop(0, 'rgba(0,0,0,0)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.25)');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.restore();
+
+      if (elapsed < durationMs) {
+        requestAnimationFrame(draw);
+      } else {
+        recorder.onstop = () => {
+          if (audioCtx && audioCtx.state !== 'closed') {
+            audioCtx.close().catch(() => {});
+          }
+          resolve();
+        };
+        recorder.stop();
+      }
+    }
+
+    requestAnimationFrame(draw);
+  });
+
+  // 7. Converter o resultado para Base64
+  const videoBlob = new Blob(chunks, { type: chosenMime });
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(videoBlob);
+  });
+
+  return {
+    base64,
+    mimeType: chosenMime.split(';')[0],
+    mediaId: `vid_${Date.now()}`,
+  };
+}
+
 export const CodespacesSDK = {
   upload: async ({ base64, mimeType = 'image/jpeg', name }) => {
-    return { mediaId: `upload_${Date.now()}`, base64, mimeType, name };
+    const mediaId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    mediaCache.set(mediaId, { base64, mimeType, name });
+    return { mediaId, base64, mimeType, name };
+  },
+
+  download: async ({ filename, mimeType, base64, bytes }) => {
+    let finalBytes = bytes;
+    if (!finalBytes && base64) {
+      const cleanB64 = base64.replace(/^data:[^,]+;base64,/, '');
+      const binary = atob(cleanB64);
+      finalBytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) finalBytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([finalBytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return { ok: true };
   },
 
   generate: {
@@ -43,18 +308,53 @@ export const CodespacesSDK = {
         reader.readAsDataURL(blob);
       });
 
+      const mediaId = `img_${Date.now()}_${seed}`;
+      mediaCache.set(mediaId, { base64, mimeType: 'image/jpeg' });
+
       return {
         base64,
         mimeType: 'image/jpeg',
-        mediaId: `img_${Date.now()}_${seed}`,
+        mediaId,
       };
     },
 
     video: async (params) => {
-      return {
-        mediaId: `vid_${Date.now()}`,
-        mimeType: 'video/mp4',
-      };
+      // 1. Resgatar imagem do quadro
+      let imageBase64 = params.firstFrameImageBase64
+        || params.shot?.generatedImageBase64
+        || params.shot?.generatedImageUrl
+        || '';
+
+      if (!imageBase64 && params.firstFrameImageMediaId) {
+        imageBase64 = mediaCache.get(params.firstFrameImageMediaId)?.base64 || '';
+      }
+
+      if (!imageBase64) {
+        throw new Error('A tomada precisa de uma imagem de quadro inicial no storyboard para gerar o vídeo.');
+      }
+
+      // 2. Determinar gênero do personagem para a voz
+      let gender = 'female';
+      const speakerName = params.speakerName || params.shot?.speakerName || '';
+      const characters = params.characters || [];
+      const character = characters.find(c => c.name === speakerName || c.id === params.shot?.speakerCharacterId);
+      if (character?.voiceProfile?.gender) {
+        gender = character.voiceProfile.gender.toLowerCase().includes('masc') ? 'male' : 'female';
+      } else if (/antonio|pedro|joao|carlos|marcos|homem|patrao|policial/i.test(speakerName)) {
+        gender = 'male';
+      }
+
+      // 3. Executar animação cinematográfica
+      return await animateShotToVideo({
+        imageBase64,
+        durationSeconds: params.durationSeconds || params.shot?.durationSeconds || 6,
+        dialogueLine: params.dialogueLine || params.shot?.dialogueLine || '',
+        speakerName,
+        emotion: params.emotion || params.shot?.emotion || '',
+        cameraMovement: params.cameraMovement || params.shot?.cameraMovement || 'Panorâmica Lenta',
+        aspectRatio: params.aspectRatio || '9:16',
+        gender,
+      });
     },
   },
 
@@ -69,11 +369,11 @@ export const CodespacesSDK = {
           if (!file) return resolve(null);
           const reader = new FileReader();
           reader.onload = () => {
-            resolve({
-              base64: reader.result,
-              mimeType: file.type || 'image/jpeg',
-              mediaId: 'upload_' + Date.now(),
-            });
+            const base64 = reader.result;
+            const mimeType = file.type || 'image/jpeg';
+            const mediaId = 'upload_' + Date.now();
+            mediaCache.set(mediaId, { base64, mimeType, name: file.name });
+            resolve({ base64, mimeType, mediaId });
           };
           reader.readAsDataURL(file);
         };

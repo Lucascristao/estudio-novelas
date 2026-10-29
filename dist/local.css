@@ -825,6 +825,9 @@ video {
 .border-amber-500\/40 {
   border-color: rgb(245 158 11 / 0.4);
 }
+.border-emerald-400\/20 {
+  border-color: rgb(52 211 153 / 0.2);
+}
 .border-emerald-400\/30 {
   border-color: rgb(52 211 153 / 0.3);
 }
@@ -941,6 +944,9 @@ video {
 }
 .bg-emerald-400\/10 {
   background-color: rgb(52 211 153 / 0.1);
+}
+.bg-emerald-400\/5 {
+  background-color: rgb(52 211 153 / 0.05);
 }
 .bg-emerald-500\/10 {
   background-color: rgb(16 185 129 / 0.1);
@@ -1483,6 +1489,9 @@ video {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
+}
+.ease-in-out {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 :root {
   color-scheme: dark;

@@ -117,7 +117,9 @@ function Studio({ sdk, runtime = 'flow', canDownloadZip = false }) {
   }
   async function exportAction(action, payload = {}) {
     const prepared = plan(payload);
-    const baixarArquivo = runtime === 'local' ? criarDownloadNavegador() : criarDownloadFlow(sdk, { suportaZip: canDownloadZip });
+    const baixarArquivo = (runtime === 'local' || runtime === 'codespaces' || typeof sdk?.download !== 'function')
+      ? criarDownloadNavegador()
+      : criarDownloadFlow(sdk, { suportaZip: canDownloadZip });
     const options = { baixarArquivo, onProgress: setExportProgress };
     if (action === 'exportProject') return baixarExportacao(prepared, { ...options, modo: 'projeto' });
     if (action === 'exportZip' || action === 'exportScene') return baixarExportacao(prepared, { ...options, modo: 'zip', incluirProjeto: false, cenaIndex: payload.cenaIndex });
@@ -127,6 +129,20 @@ function Studio({ sdk, runtime = 'flow', canDownloadZip = false }) {
     if (action === 'downloadClip') {
       const tag = `S${String(payload.sceneIndex + 1).padStart(2, '0')}_T${String(payload.shotIndex + 1).padStart(2, '0')}`;
       paths = prepared.manifesto.midias.filter(media => media.mimeType.startsWith('video/') && media.usos.some(use => use.tag === tag)).map(media => media.arquivo);
+      if (!paths.length) {
+        const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
+        if (shot?.generatedVideoBase64) {
+          const mime = shot.generatedVideoMimeType || 'video/mp4';
+          const ext = mime.includes('webm') ? 'webm' : 'mp4';
+          const filename = `${shot.shotId || tag}_video.${ext}`;
+          const cleanB64 = shot.generatedVideoBase64.replace(/^data:[^,]+;base64,/, '');
+          const binary = atob(cleanB64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          await baixarArquivo({ filename, mimeType: mime, bytes });
+          return;
+        }
+      }
     }
     if (!paths.length) throw new Error('Este arquivo não está disponível no projeto. Gere ou importe a mídia antes de baixar.');
     const files = prepared.arquivos.filter(file => paths.includes(file.caminho));
