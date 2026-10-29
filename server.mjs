@@ -34,21 +34,26 @@ function parseJsonBody(req) {
   });
 }
 
-// Load API key from process.env or .env file
+// Load API key dynamically from process.env or .env file
 let geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-if (!geminiApiKey && existsSync(resolve(root, '.env'))) {
-  try {
-    const envContent = await readFile(resolve(root, '.env'), 'utf8');
-    for (const line of envContent.split('\n')) {
-      const match = line.match(/^\s*(?:GEMINI_API_KEY|GOOGLE_API_KEY)\s*=\s*([^\s#]+)/);
-      if (match) {
-        geminiApiKey = match[1].trim();
-        break;
+
+async function getGeminiApiKey() {
+  if (geminiApiKey) return geminiApiKey;
+  if (existsSync(resolve(root, '.env'))) {
+    try {
+      const envContent = await readFile(resolve(root, '.env'), 'utf8');
+      for (const line of envContent.split('\n')) {
+        const match = line.match(/^\s*(?:GEMINI_API_KEY|GOOGLE_API_KEY)\s*=\s*([^\s#]+)/);
+        if (match) {
+          geminiApiKey = match[1].trim();
+          return geminiApiKey;
+        }
       }
+    } catch (err) {
+      console.warn('Erro ao ler .env:', err.message);
     }
-  } catch (err) {
-    console.warn('Erro ao ler .env:', err.message);
   }
+  return '';
 }
 
 // Map aspect ratio to dimensions
