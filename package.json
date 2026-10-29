@@ -1,0 +1,26 @@
+{
+  "name": "sanja-estudio-novelas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Estúdio Sanja 3.0: interface React para Flow e prévia local sem geração.",
+  "scripts": {
+    "start": "node server.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "preview": "node scripts/preview.mjs",
+    "dev": "node scripts/preview.mjs --build",
+    "test": "node --test \"test/*.test.js\" \"test/*.test.mjs\""
+  },
+  "engines": { "node": ">=18.17" },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17"
+  }
+}
