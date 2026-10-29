@@ -12977,7 +12977,8 @@ var ProductionService = class {
       this.validateResult(result, "v\xEDdeo");
       if (result.base64) shot.generatedVideoBase64 = result.base64;
       else delete shot.generatedVideoBase64;
-      shot.generatedVideoMimeType = result.mimeType || "video/mp4";
+      if (result.url) shot.generatedVideoUrl = result.url;
+      shot.generatedVideoMimeType = result.mimeType || "video/webm";
       shot.videoMediaId = result.mediaId || "";
       shot.videoModel = model;
       shot.videoResolution = resolution;
@@ -13739,10 +13740,10 @@ function decodificarBase64(valor, mimeType = "application/octet-stream") {
   if (typeof valor !== "string") throw new Error("A m\xEDdia n\xE3o cont\xE9m base64 em texto.");
   let texto = valor.trim();
   if (/^data:/i.test(texto)) {
-    const data = /^data:([^,]*),([\s\S]*)$/i.exec(texto);
-    if (!data || !/;base64$/i.test(data[1])) throw new Error("Data URL sem conte\xFAdo base64.");
-    mimeType = data[1].split(";")[0] || mimeType;
-    texto = data[2];
+    const base64Index = texto.indexOf(";base64,");
+    if (base64Index < 0) throw new Error("Data URL sem conte\xFAdo base64.");
+    mimeType = texto.slice(5, base64Index) || mimeType;
+    texto = texto.slice(base64Index + 8);
   }
   texto = texto.replace(/\s/g, "");
   if (!texto || !/^[A-Za-z0-9+/]*={0,2}$/.test(texto) || texto.length % 4 === 1 || texto.includes("=") && texto.length % 4 !== 0) throw new Error("Base64 inv\xE1lido ou vazio.");
@@ -14004,10 +14005,10 @@ function criarDownloadFlow(Flow, { suportaZip = false } = {}) {
   baixar.suportaZip = suportaZip;
   return baixar;
 }
-function criarDownloadNavegador({ document: document2 = globalThis.document, URL = globalThis.URL } = {}) {
-  if (!document2?.createElement || !URL?.createObjectURL) throw new Error("Download direto do navegador n\xE3o est\xE1 dispon\xEDvel.");
+function criarDownloadNavegador({ document: document2 = globalThis.document, URL: URL2 = globalThis.URL } = {}) {
+  if (!document2?.createElement || !URL2?.createObjectURL) throw new Error("Download direto do navegador n\xE3o est\xE1 dispon\xEDvel.");
   const baixar = async ({ filename, mimeType, bytes }) => {
-    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+    const url = URL2.createObjectURL(new Blob([bytes], { type: mimeType }));
     const link = document2.createElement("a");
     try {
       link.href = url;
@@ -14017,7 +14018,7 @@ function criarDownloadNavegador({ document: document2 = globalThis.document, URL
       link.click();
     } finally {
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 6e4);
+      setTimeout(() => URL2.revokeObjectURL(url), 6e4);
     }
   };
   baixar.suportaZip = true;
@@ -14705,11 +14706,29 @@ var button2 = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl
 var primary2 = `${button2} !border-amber-400/30 !bg-amber-400 !text-slate-950 hover:!bg-amber-300`;
 var input2 = "w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm leading-6 text-slate-100 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30 disabled:opacity-60";
 var hasVideo2 = (shot) => Boolean(shot.generatedVideoBase64 || shot.videoMediaId || shot.generatedVideoUrl);
-var canDownloadClip = (shot) => Boolean(shot.generatedVideoBase64);
+var canDownloadClip = (shot) => Boolean(shot.generatedVideoBase64 || shot.generatedVideoUrl);
 var hasImage3 = (shot) => Boolean(shot.generatedImageBase64 || shot.imageMediaId || shot.generatedImageUrl);
 var source = (base64, mimeType, url = "") => base64 ? base64.startsWith("data:") ? base64 : `data:${mimeType};base64,${base64}` : url;
 var imageSource3 = (shot) => source(shot.generatedImageBase64, shot.generatedMimeType || "image/jpeg", shot.generatedImageUrl || "");
-var videoSource = (shot) => source(shot.generatedVideoBase64, shot.generatedVideoMimeType || "video/mp4", shot.generatedVideoUrl || "");
+var videoSource = (shot) => {
+  if (shot.generatedVideoUrl) return shot.generatedVideoUrl;
+  if (!shot.generatedVideoBase64) return "";
+  const b64 = shot.generatedVideoBase64;
+  if (b64.startsWith("blob:") || b64.startsWith("http")) return b64;
+  try {
+    const base64Index = b64.indexOf(";base64,");
+    const rawB64 = (base64Index >= 0 ? b64.slice(base64Index + 8) : b64).replace(/\s/g, "");
+    const mime = base64Index >= 0 ? b64.slice(5, base64Index) : shot.generatedVideoMimeType || "video/webm";
+    const binary = atob(rawB64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    shot.generatedVideoUrl = url;
+    return url;
+  } catch (e) {
+    return b64.startsWith("data:") ? b64 : `data:${shot.generatedVideoMimeType || "video/webm"};base64,${b64}`;
+  }
+};
 var time = (seconds) => `${Math.floor(Number(seconds || 0) / 60)}:${String(Math.floor(Number(seconds || 0) % 60)).padStart(2, "0")}`;
 var statusOf2 = (shot) => shot.videoStatus === "generating" ? "generating" : shot.videoStatus === "error" ? "error" : hasVideo2(shot) ? "completed" : "pending";
 var statusLabels2 = { generating: "Gerando v\xEDdeo", error: "Falha na \xFAltima tentativa", completed: "V\xEDdeo pronto", pending: "V\xEDdeo pendente" };
@@ -15151,22 +15170,36 @@ function Studio({ sdk, runtime = "flow", canDownloadZip = false }) {
     const documents = { roteiro: "ROTEIRO_COMPLETO.txt", falas: "FALAS_POR_PERSONAGEM.txt", prompts: "PROMPTS_GERACAO.txt", srt: "LEGENDAS.srt", manifesto: "MANIFESTO.json", biblia: "STORY_BIBLE.json" };
     if (action2 === "exportDocument" && !paths.length) paths = [documents[payload.tipo]].filter(Boolean);
     if (action2 === "downloadClip") {
+      const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
       const tag = `S${String(payload.sceneIndex + 1).padStart(2, "0")}_T${String(payload.shotIndex + 1).padStart(2, "0")}`;
-      paths = prepared.manifesto.midias.filter((media) => media.mimeType.startsWith("video/") && media.usos.some((use) => use.tag === tag)).map((media) => media.arquivo);
-      if (!paths.length) {
-        const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
-        if (shot?.generatedVideoBase64) {
-          const mime = shot.generatedVideoMimeType || "video/mp4";
-          const ext = mime.includes("webm") ? "webm" : "mp4";
-          const filename = `${shot.shotId || tag}_video.${ext}`;
-          const cleanB64 = shot.generatedVideoBase64.replace(/^data:[^,]+;base64,/, "");
-          const binary = atob(cleanB64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          await baixarArquivo({ filename, mimeType: mime, bytes });
-          return;
-        }
+      if (shot?.generatedVideoUrl && shot.generatedVideoUrl.startsWith("blob:")) {
+        const mime = shot.generatedVideoMimeType || "video/webm";
+        const ext = mime.includes("mp4") ? "mp4" : "webm";
+        const filename = `${shot.shotId || tag}_video.${ext}`;
+        const link = document.createElement("a");
+        link.href = shot.generatedVideoUrl;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        notify(`Download iniciado: ${filename}`);
+        return;
       }
+      if (shot?.generatedVideoBase64) {
+        const mime = shot.generatedVideoMimeType || "video/webm";
+        const ext = mime.includes("mp4") ? "mp4" : "webm";
+        const filename = `${shot.shotId || tag}_video.${ext}`;
+        const base64Index = shot.generatedVideoBase64.indexOf(";base64,");
+        const rawB64 = (base64Index >= 0 ? shot.generatedVideoBase64.slice(base64Index + 8) : shot.generatedVideoBase64).replace(/\s/g, "");
+        const binary = atob(rawB64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        await baixarArquivo({ filename, mimeType: mime, bytes });
+        notify(`Download iniciado: ${filename}`);
+        return;
+      }
+      paths = prepared.manifesto.midias.filter((media) => media.mimeType.startsWith("video/") && media.usos.some((use) => use.tag === tag)).map((media) => media.arquivo);
     }
     if (!paths.length) throw new Error("Este arquivo n\xE3o est\xE1 dispon\xEDvel no projeto. Gere ou importe a m\xEDdia antes de baixar.");
     const files = prepared.arquivos.filter((file) => paths.includes(file.caminho));

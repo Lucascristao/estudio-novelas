@@ -101,11 +101,10 @@ async function animateShotToVideo({
 
   // Determinar o formato de gravação suportado pelo navegador
   const candidates = [
-    'video/mp4;codecs=avc1,mp4a.40.2',
-    'video/mp4',
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm',
+    'video/mp4',
   ];
   const chosenMime = candidates.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
 
@@ -224,8 +223,9 @@ async function animateShotToVideo({
     requestAnimationFrame(draw);
   });
 
-  // 7. Converter o resultado para Base64
+  // 7. Converter o resultado para Base64 e Blob URL (para reprodução fluida no navegador)
   const videoBlob = new Blob(chunks, { type: chosenMime });
+  const blobUrl = URL.createObjectURL(videoBlob);
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
@@ -235,6 +235,7 @@ async function animateShotToVideo({
 
   return {
     base64,
+    url: blobUrl,
     mimeType: chosenMime.split(';')[0],
     mediaId: `vid_${Date.now()}`,
   };

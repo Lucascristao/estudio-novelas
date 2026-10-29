@@ -127,22 +127,36 @@ function Studio({ sdk, runtime = 'flow', canDownloadZip = false }) {
     const documents = { roteiro: 'ROTEIRO_COMPLETO.txt', falas: 'FALAS_POR_PERSONAGEM.txt', prompts: 'PROMPTS_GERACAO.txt', srt: 'LEGENDAS.srt', manifesto: 'MANIFESTO.json', biblia: 'STORY_BIBLE.json' };
     if (action === 'exportDocument' && !paths.length) paths = [documents[payload.tipo]].filter(Boolean);
     if (action === 'downloadClip') {
+      const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
       const tag = `S${String(payload.sceneIndex + 1).padStart(2, '0')}_T${String(payload.shotIndex + 1).padStart(2, '0')}`;
-      paths = prepared.manifesto.midias.filter(media => media.mimeType.startsWith('video/') && media.usos.some(use => use.tag === tag)).map(media => media.arquivo);
-      if (!paths.length) {
-        const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
-        if (shot?.generatedVideoBase64) {
-          const mime = shot.generatedVideoMimeType || 'video/mp4';
-          const ext = mime.includes('webm') ? 'webm' : 'mp4';
-          const filename = `${shot.shotId || tag}_video.${ext}`;
-          const cleanB64 = shot.generatedVideoBase64.replace(/^data:[^,]+;base64,/, '');
-          const binary = atob(cleanB64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          await baixarArquivo({ filename, mimeType: mime, bytes });
-          return;
-        }
+      if (shot?.generatedVideoUrl && shot.generatedVideoUrl.startsWith('blob:')) {
+        const mime = shot.generatedVideoMimeType || 'video/webm';
+        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+        const filename = `${shot.shotId || tag}_video.${ext}`;
+        const link = document.createElement('a');
+        link.href = shot.generatedVideoUrl;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        notify(`Download iniciado: ${filename}`);
+        return;
       }
+      if (shot?.generatedVideoBase64) {
+        const mime = shot.generatedVideoMimeType || 'video/webm';
+        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+        const filename = `${shot.shotId || tag}_video.${ext}`;
+        const base64Index = shot.generatedVideoBase64.indexOf(';base64,');
+        const rawB64 = (base64Index >= 0 ? shot.generatedVideoBase64.slice(base64Index + 8) : shot.generatedVideoBase64).replace(/\s/g, '');
+        const binary = atob(rawB64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        await baixarArquivo({ filename, mimeType: mime, bytes });
+        notify(`Download iniciado: ${filename}`);
+        return;
+      }
+      paths = prepared.manifesto.midias.filter(media => media.mimeType.startsWith('video/') && media.usos.some(use => use.tag === tag)).map(media => media.arquivo);
     }
     if (!paths.length) throw new Error('Este arquivo não está disponível no projeto. Gere ou importe a mídia antes de baixar.');
     const files = prepared.arquivos.filter(file => paths.includes(file.caminho));

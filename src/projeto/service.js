@@ -238,7 +238,8 @@ export class ProductionService {
       this.validateResult(result, 'vídeo');
       if (result.base64) shot.generatedVideoBase64 = result.base64;
       else delete shot.generatedVideoBase64;
-      shot.generatedVideoMimeType = result.mimeType || 'video/mp4';
+      if (result.url) shot.generatedVideoUrl = result.url;
+      shot.generatedVideoMimeType = result.mimeType || 'video/webm';
       shot.videoMediaId = result.mediaId || '';
       shot.videoModel = model;
       shot.videoResolution = resolution;

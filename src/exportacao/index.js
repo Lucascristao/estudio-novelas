@@ -34,10 +34,10 @@ export function decodificarBase64(valor, mimeType = 'application/octet-stream') 
   if (typeof valor !== 'string') throw new Error('A mídia não contém base64 em texto.');
   let texto = valor.trim();
   if (/^data:/i.test(texto)) {
-    const data = /^data:([^,]*),([\s\S]*)$/i.exec(texto);
-    if (!data || !/;base64$/i.test(data[1])) throw new Error('Data URL sem conteúdo base64.');
-    mimeType = data[1].split(';')[0] || mimeType;
-    texto = data[2];
+    const base64Index = texto.indexOf(';base64,');
+    if (base64Index < 0) throw new Error('Data URL sem conteúdo base64.');
+    mimeType = texto.slice(5, base64Index) || mimeType;
+    texto = texto.slice(base64Index + 8);
   }
   texto = texto.replace(/\s/g, '');
   if (!texto || !/^[A-Za-z0-9+/]*={0,2}$/.test(texto) || texto.length % 4 === 1 ||

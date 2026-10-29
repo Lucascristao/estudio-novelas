@@ -13,11 +13,29 @@ const button = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-x
 const primary = `${button} !border-amber-400/30 !bg-amber-400 !text-slate-950 hover:!bg-amber-300`;
 const input = 'w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm leading-6 text-slate-100 focus:border-amber-400/60 focus:outline-none focus:ring-1 focus:ring-amber-400/30 disabled:opacity-60';
 const hasVideo = shot => Boolean(shot.generatedVideoBase64 || shot.videoMediaId || shot.generatedVideoUrl);
-const canDownloadClip = shot => Boolean(shot.generatedVideoBase64);
+const canDownloadClip = shot => Boolean(shot.generatedVideoBase64 || shot.generatedVideoUrl);
 const hasImage = shot => Boolean(shot.generatedImageBase64 || shot.imageMediaId || shot.generatedImageUrl);
 const source = (base64, mimeType, url = '') => base64 ? (base64.startsWith('data:') ? base64 : `data:${mimeType};base64,${base64}`) : url;
 const imageSource = shot => source(shot.generatedImageBase64, shot.generatedMimeType || 'image/jpeg', shot.generatedImageUrl || '');
-const videoSource = shot => source(shot.generatedVideoBase64, shot.generatedVideoMimeType || 'video/mp4', shot.generatedVideoUrl || '');
+const videoSource = shot => {
+  if (shot.generatedVideoUrl) return shot.generatedVideoUrl;
+  if (!shot.generatedVideoBase64) return '';
+  const b64 = shot.generatedVideoBase64;
+  if (b64.startsWith('blob:') || b64.startsWith('http')) return b64;
+  try {
+    const base64Index = b64.indexOf(';base64,');
+    const rawB64 = (base64Index >= 0 ? b64.slice(base64Index + 8) : b64).replace(/\s/g, '');
+    const mime = base64Index >= 0 ? b64.slice(5, base64Index) : (shot.generatedVideoMimeType || 'video/webm');
+    const binary = atob(rawB64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    shot.generatedVideoUrl = url;
+    return url;
+  } catch (e) {
+    return b64.startsWith('data:') ? b64 : `data:${shot.generatedVideoMimeType || 'video/webm'};base64,${b64}`;
+  }
+};
 const time = seconds => `${Math.floor(Number(seconds || 0) / 60)}:${String(Math.floor(Number(seconds || 0) % 60)).padStart(2, '0')}`;
 const statusOf = shot => shot.videoStatus === 'generating' ? 'generating' : shot.videoStatus === 'error' ? 'error' : hasVideo(shot) ? 'completed' : 'pending';
 const statusLabels = { generating: 'Gerando vídeo', error: 'Falha na última tentativa', completed: 'Vídeo pronto', pending: 'Vídeo pendente' };

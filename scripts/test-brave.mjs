@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer-core';
 import { resolve } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const BRAVE_PATH = 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe';
@@ -116,7 +116,7 @@ async function run() {
     });
 
     console.log(`[Status ${i + 1}s]:`, JSON.stringify(videoState));
-    if (videoState.hasVideoSrc && videoState.srcLength > 1000) {
+    if (videoState.hasVideoSrc && videoState.srcLength > 10) {
       completed = true;
       break;
     }
@@ -127,6 +127,29 @@ async function run() {
 
   if (completed) {
     console.log('✅ TESTE BEM SUCEDIDO: O vídeo foi animado com sucesso e está pronto no player!');
+    console.log('8. Extraindo arquivo de vídeo da página e salvando no disco...');
+    const base64Data = await page.evaluate(async () => {
+      const vid = document.querySelector('video');
+      if (!vid || !vid.src) return null;
+      const res = await fetch(vid.src);
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    });
+
+    if (base64Data) {
+      const cleanB64 = base64Data.replace(/^data:[^,]+;base64,/, '');
+      const buffer = Buffer.from(cleanB64, 'base64');
+      const dest1 = 'C:\\Users\\lucas\\Downloads\\Novela nordestina\\pousada\\tomada_01_valeria.webm';
+      const dest2 = resolve(ARTIFACTS_DIR, 'tomada_01_valeria.webm');
+      writeFileSync(dest1, buffer);
+      writeFileSync(dest2, buffer);
+      console.log(`🎬 Arquivo salvo em: ${dest1} (${buffer.length} bytes)`);
+      console.log(`🎬 Cópia salva em: ${dest2}`);
+    }
   } else {
     console.warn('⚠️ O vídeo não concluiu dentro do tempo limite esperado.');
   }
