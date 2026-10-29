@@ -44,7 +44,7 @@ async function animateShotToVideo({
       const audioRes = await fetch(audioEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleanLine, gender, emotion }),
+        body: JSON.stringify({ text: cleanLine, character: speakerName, gender, emotion }),
       });
 
       if (audioRes.ok) {

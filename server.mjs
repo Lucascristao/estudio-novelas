@@ -5,6 +5,7 @@ import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import { generateActorVoice } from './scripts/generate-actor-voice.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)));
 const distFolder = resolve(root, 'dist');
@@ -194,7 +195,7 @@ const server = createServer(async (req, res) => {
       }
 
       if (pathname === '/api/generate/audio' && req.method === 'POST') {
-        const { text, gender = 'female' } = await parseJsonBody(req);
+        const { text, character = 'Personagem', emotion = '', gender = 'female' } = await parseJsonBody(req);
         if (!text || typeof text !== 'string' || !text.trim()) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Texto ausente para geração de áudio.' }));
@@ -202,6 +203,28 @@ const server = createServer(async (req, res) => {
         }
 
         const cleanText = text.trim();
+        try {
+          let voiceName = 'Aoede';
+          if (gender === 'male') {
+            voiceName = 'Fenrir';
+          } else if (emotion.toLowerCase().includes('humild') || emotion.toLowerCase().includes('choro') || emotion.toLowerCase().includes('trêmul') || emotion.toLowerCase().includes('medo') || character.toLowerCase().includes('rosa')) {
+            voiceName = 'Kore';
+          }
+          const wavBuffer = await generateActorVoice(cleanText, character, emotion, voiceName);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            audioBase64: wavBuffer.toString('base64'),
+            mimeType: 'audio/wav',
+            character,
+            gender,
+            engine: 'gemini-live',
+            durationHint: (wavBuffer.length - 44) / (24000 * 2)
+          }));
+          return;
+        } catch (liveErr) {
+          console.warn('Fallback para síntese básica:', liveErr.message);
+        }
+
         const chunks = [];
         if (cleanText.length <= 120) {
           chunks.push(cleanText);
@@ -239,6 +262,7 @@ const server = createServer(async (req, res) => {
           audioBase64: finalBuffer.toString('base64'),
           mimeType: 'audio/mpeg',
           gender,
+          engine: 'tts-fallback'
         }));
         return;
       }

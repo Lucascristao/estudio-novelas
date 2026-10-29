@@ -129,10 +129,11 @@ function Studio({ sdk, runtime = 'flow', canDownloadZip = false }) {
     if (action === 'downloadClip') {
       const shot = current.current.storyBible?.scenes?.[payload.sceneIndex]?.shots?.[payload.shotIndex];
       const tag = `S${String(payload.sceneIndex + 1).padStart(2, '0')}_T${String(payload.shotIndex + 1).padStart(2, '0')}`;
-      if (shot?.generatedVideoUrl && shot.generatedVideoUrl.startsWith('blob:')) {
-        const mime = shot.generatedVideoMimeType || 'video/webm';
-        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-        const filename = `${shot.shotId || tag}_video.${ext}`;
+      const mime = shot?.generatedVideoMimeType || 'video/webm';
+      const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+      const filename = `${shot?.shotId || tag}_video.${ext}`;
+
+      if (shot?.generatedVideoUrl) {
         const link = document.createElement('a');
         link.href = shot.generatedVideoUrl;
         link.download = filename;
@@ -144,11 +145,20 @@ function Studio({ sdk, runtime = 'flow', canDownloadZip = false }) {
         return;
       }
       if (shot?.generatedVideoBase64) {
-        const mime = shot.generatedVideoMimeType || 'video/webm';
-        const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-        const filename = `${shot.shotId || tag}_video.${ext}`;
-        const base64Index = shot.generatedVideoBase64.indexOf(';base64,');
-        const rawB64 = (base64Index >= 0 ? shot.generatedVideoBase64.slice(base64Index + 8) : shot.generatedVideoBase64).replace(/\s/g, '');
+        const b64 = shot.generatedVideoBase64;
+        if (b64.startsWith('data:') || b64.startsWith('blob:') || b64.startsWith('http')) {
+          const link = document.createElement('a');
+          link.href = b64;
+          link.download = filename;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          notify(`Download iniciado: ${filename}`);
+          return;
+        }
+        const base64Index = b64.indexOf(';base64,');
+        const rawB64 = (base64Index >= 0 ? b64.slice(base64Index + 8) : b64).replace(/\s/g, '');
         const binary = atob(rawB64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
