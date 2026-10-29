@@ -1,86 +1,23 @@
 export const CodespacesSDK = {
   upload: async ({ base64, mimeType = 'image/jpeg', name }) => {
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, mimeType, name }),
-      });
-      if (res.ok) return await res.json();
-    } catch (_) {}
-
     return { mediaId: `upload_${Date.now()}`, base64, mimeType, name };
   },
 
   generate: {
     text: async (prompt, options = {}) => {
-      // 1. Tenta backend local se estiver rodando
-      try {
-        const res = await fetch('/api/generate/text', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, systemInstruction: options.systemInstruction }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.text) return data;
-        }
-      } catch (_) {}
-
-      // 2. Modo direto no navegador (Netlify / Nuvem)
-      let apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
-      if (!apiKey) {
-        apiKey = window.prompt('Digite sua chave gratuita do Google AI Studio (Gemini):');
-        if (apiKey) {
-          apiKey = apiKey.trim();
-          localStorage.setItem('GEMINI_API_KEY', apiKey);
-        }
-      }
-      if (!apiKey) throw new Error('Chave do Gemini necessária para gerar o roteiro.');
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          responseMimeType: 'application/json',
-        },
-      };
-      if (options.systemInstruction) {
-        payload.systemInstruction = { parts: [{ text: options.systemInstruction }] };
-      }
-
-      const response = await fetch(url, {
+      const res = await fetch('/api/generate/text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ prompt, systemInstruction: options.systemInstruction }),
       });
-
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`Erro na API Gemini: ${response.status} - ${err}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Falha na geração do roteiro' }));
+        throw new Error(err.error || 'Falha na geração do roteiro.');
       }
-
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return { text };
+      return await res.json();
     },
 
     image: async ({ prompt, aspectRatio = '9:16' }) => {
-      // 1. Tenta backend local se estiver rodando
-      try {
-        const res = await fetch('/api/generate/image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, aspectRatio }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.base64) return data;
-        }
-      } catch (_) {}
-
-      // 2. Modo direto no navegador via Pollinations FLUX
       let width = 720, height = 1280;
       if (aspectRatio === '16:9') { width = 1280; height = 720; }
       else if (aspectRatio === '1:1') { width = 1024; height = 1024; }
@@ -109,15 +46,6 @@ export const CodespacesSDK = {
     },
 
     video: async (params) => {
-      try {
-        const res = await fetch('/api/generate/video', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params),
-        });
-        if (res.ok) return await res.json();
-      } catch (_) {}
-
       return {
         mediaId: `vid_${Date.now()}`,
         mimeType: 'video/mp4',
