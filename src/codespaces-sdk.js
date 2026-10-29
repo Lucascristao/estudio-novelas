@@ -345,7 +345,38 @@ export const CodespacesSDK = {
         gender = 'male';
       }
 
-      // 3. Executar animação cinematográfica
+      // 3. Tentar gerar vídeo real de IA com GPU em nuvem (zero créditos, movimento real)
+      const videoEndpoint = window.location.hostname.includes('netlify.app')
+        ? '/.netlify/functions/video'
+        : '/api/generate/video';
+
+      try {
+        const aiVideoRes = await fetch(videoEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64,
+            prompt: params.prompt || 'dramatic novelinha scene, natural actor movement and subtle expression',
+            durationSeconds: params.durationSeconds || params.shot?.durationSeconds || 4,
+            aspectRatio: params.aspectRatio || '9:16',
+          }),
+        });
+
+        if (aiVideoRes.ok) {
+          const aiVideoData = await aiVideoRes.json();
+          if (aiVideoData.base64) {
+            return {
+              base64: aiVideoData.base64,
+              mimeType: aiVideoData.mimeType || 'video/mp4',
+              mediaId: aiVideoData.mediaId || `vid_${Date.now()}`,
+            };
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Geração em nuvem indisponível, usando fallback de animação:', cloudErr);
+      }
+
+      // 4. Fallback de animação cinematográfica
       return await animateShotToVideo({
         imageBase64,
         durationSeconds: params.durationSeconds || params.shot?.durationSeconds || 6,

@@ -15591,6 +15591,31 @@ var CodespacesSDK = {
       } else if (/antonio|pedro|joao|carlos|marcos|homem|patrao|policial/i.test(speakerName)) {
         gender = "male";
       }
+      const videoEndpoint = window.location.hostname.includes("netlify.app") ? "/.netlify/functions/video" : "/api/generate/video";
+      try {
+        const aiVideoRes = await fetch(videoEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64,
+            prompt: params.prompt || "dramatic novelinha scene, natural actor movement and subtle expression",
+            durationSeconds: params.durationSeconds || params.shot?.durationSeconds || 4,
+            aspectRatio: params.aspectRatio || "9:16"
+          })
+        });
+        if (aiVideoRes.ok) {
+          const aiVideoData = await aiVideoRes.json();
+          if (aiVideoData.base64) {
+            return {
+              base64: aiVideoData.base64,
+              mimeType: aiVideoData.mimeType || "video/mp4",
+              mediaId: aiVideoData.mediaId || `vid_${Date.now()}`
+            };
+          }
+        }
+      } catch (cloudErr) {
+        console.warn("Gera\xE7\xE3o em nuvem indispon\xEDvel, usando fallback de anima\xE7\xE3o:", cloudErr);
+      }
       return await animateShotToVideo({
         imageBase64,
         durationSeconds: params.durationSeconds || params.shot?.durationSeconds || 6,

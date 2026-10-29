@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { generateActorVoice } from './scripts/generate-actor-voice.mjs';
+import { generateAiVideo } from './scripts/generate-ai-video.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)));
 const distFolder = resolve(root, 'dist');
@@ -292,11 +293,38 @@ const server = createServer(async (req, res) => {
       }
 
       if (pathname === '/api/generate/video' && req.method === 'POST') {
-        const { firstFrameImageMediaId, durationSeconds = 6, prompt = '' } = await parseJsonBody(req);
+        const { firstFrameImageMediaId, frameBase64: directBase64, imageBase64: directImage, durationSeconds = 4, prompt = '' } = await parseJsonBody(req);
         
-        let frameBase64 = '';
-        if (firstFrameImageMediaId && mediaStore.has(firstFrameImageMediaId)) {
+        let frameBase64 = directBase64 || directImage || '';
+        if (!frameBase64 && firstFrameImageMediaId && mediaStore.has(firstFrameImageMediaId)) {
           frameBase64 = mediaStore.get(firstFrameImageMediaId).base64;
+        }
+
+        // 1. Tentar gerar vídeo real com IA em nuvem gratuita (LTX-Video)
+        if (frameBase64) {
+          try {
+            console.log('[API] Gerando vídeo real de IA via GPU gratuita...');
+            const aiResult = await generateAiVideo({
+              image: frameBase64,
+              prompt: prompt || 'realistic cinematic shot, natural character movement',
+              durationSeconds: Math.min(6, Math.max(2, Number(durationSeconds) || 4))
+            });
+
+            const vidBase64 = `data:${aiResult.mimeType};base64,${aiResult.videoBuffer.toString('base64')}`;
+            const mediaId = `vid_${Date.now()}`;
+            mediaStore.set(mediaId, { base64: vidBase64, mimeType: aiResult.mimeType });
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              base64: vidBase64,
+              mimeType: aiResult.mimeType,
+              mediaId,
+              durationSeconds: aiResult.durationSeconds
+            }));
+            return;
+          } catch (aiErr) {
+            console.warn('[API] Motor de IA em nuvem falhou, tentando fallback local:', aiErr.message);
+          }
         }
 
         // Generate synthetic Ken Burns video from the image
