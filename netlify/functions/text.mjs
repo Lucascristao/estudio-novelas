@@ -28,7 +28,8 @@ export default async (req) => {
   try {
     const { prompt, systemInstruction } = await req.json();
 
-    const models = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+    // Modelos ativos confirmados no painel do usuário
+    const models = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-flash-latest'];
     let lastError = null;
 
     for (const model of models) {
@@ -44,22 +45,36 @@ export default async (req) => {
         payload.systemInstruction = { parts: [{ text: systemInstruction }] };
       }
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      // Tenta até 2 vezes se houver pico de demanda (503) ou cota (429)
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
 
-      if (res.ok) {
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        return new Response(JSON.stringify({ text }), { headers });
-      } else {
-        lastError = await res.text();
+          if (res.ok) {
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            return new Response(JSON.stringify({ text }), { headers });
+          }
+
+          const errText = await res.text();
+          lastError = errText;
+          if (res.status === 429 || res.status === 503) {
+            await new Promise(r => setTimeout(r, 1500));
+            continue;
+          } else {
+            break;
+          }
+        } catch (fetchErr) {
+          lastError = fetchErr.message;
+        }
       }
     }
 
-    return new Response(JSON.stringify({ error: `Erro no Gemini: ${lastError}` }), {
+    return new Response(JSON.stringify({ error: `Instabilidade temporária na Google AI: ${lastError}` }), {
       status: 502,
       headers,
     });

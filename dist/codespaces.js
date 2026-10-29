@@ -15247,30 +15247,17 @@ var CodespacesSDK = {
   },
   generate: {
     text: async (prompt, options = {}) => {
-      const endpoints = [
-        "/.netlify/functions/text",
-        "/api/generate/text"
-      ];
-      let lastErr = null;
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt, systemInstruction: options.systemInstruction })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.text) return data;
-          } else {
-            const errJson = await res.json().catch(() => ({}));
-            lastErr = errJson.error || `Erro HTTP ${res.status}`;
-          }
-        } catch (e) {
-          lastErr = e.message;
-        }
+      const endpoint = window.location.hostname.includes("netlify.app") ? "/.netlify/functions/text" : "/api/generate/text";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, systemInstruction: options.systemInstruction })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Erro na comunica\xE7\xE3o com a IA (${res.status})`);
       }
-      throw new Error(lastErr || "Falha na gera\xE7\xE3o do roteiro.");
+      return await res.json();
     },
     image: async ({ prompt, aspectRatio = "9:16" }) => {
       let width = 720, height = 1280;
