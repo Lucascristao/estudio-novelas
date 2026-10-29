@@ -1,16 +1,27 @@
 export default async (req) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers });
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método não permitido' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
     });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY não configurada nas variáveis do Netlify.' }), {
+    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY não configurada no Netlify.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
     });
   }
 
@@ -42,9 +53,7 @@ export default async (req) => {
       if (res.ok) {
         const data = await res.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        return new Response(JSON.stringify({ text }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(JSON.stringify({ text }), { headers });
       } else {
         lastError = await res.text();
       }
@@ -52,12 +61,12 @@ export default async (req) => {
 
     return new Response(JSON.stringify({ error: `Erro no Gemini: ${lastError}` }), {
       status: 502,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
     });
   }
 };

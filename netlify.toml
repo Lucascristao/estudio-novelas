@@ -9,6 +9,7 @@
   from = "/api/generate/text"
   to = "/.netlify/functions/text"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/*"

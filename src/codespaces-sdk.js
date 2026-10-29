@@ -5,16 +5,30 @@ export const CodespacesSDK = {
 
   generate: {
     text: async (prompt, options = {}) => {
-      const res = await fetch('/api/generate/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, systemInstruction: options.systemInstruction }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Falha na geração do roteiro' }));
-        throw new Error(err.error || 'Falha na geração do roteiro.');
+      const endpoints = [
+        '/.netlify/functions/text',
+        '/api/generate/text'
+      ];
+      let lastErr = null;
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, systemInstruction: options.systemInstruction }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.text) return data;
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            lastErr = errJson.error || `Erro HTTP ${res.status}`;
+          }
+        } catch (e) {
+          lastErr = e.message;
+        }
       }
-      return await res.json();
+      throw new Error(lastErr || 'Falha na geração do roteiro.');
     },
 
     image: async ({ prompt, aspectRatio = '9:16' }) => {
