@@ -1,9 +1,9 @@
 {
-  "name": "sanja-estudio-novelas",
+  "name": "app",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Estúdio Sanja 3.0: interface React para Flow e prévia local sem geração.",
+  "description": "",
   "scripts": {
     "start": "node server.mjs",
     "build": "node scripts/build.mjs",
